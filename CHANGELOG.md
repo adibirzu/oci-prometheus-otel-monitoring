@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **`discover-cloud-instances.sh`** — multicloud companion to the OCI discoverer;
+  enumerates running instances in AWS, Azure, GCP, or OCI (or `all`) and emits
+  cloud-labelled Prometheus targets (table / file_sd / config.json merge).
+- **Unified multicloud showcase** — `external_labels: {cloud: …}` per VM so all
+  clouds land in **one** OCI Monitoring namespace (`prometheus_multicloud`) and
+  **one** Grafana, split by the `cloud` dimension. New
+  `otel-destination/dashboards/multicloud.json` + a live 3-cloud Grafana screenshot.
+  Validated with one VM each in GCP/Azure/AWS reporting simultaneously.
 - **Cross-cloud OCI Monitoring** via `install-oci-agent-linux.sh` — installs the OCI
   Management Agent on any Linux host (GCP/Azure/AWS/on-prem), so non-OCI instances can
   push to OCI Monitoring through a Prometheus `/federate` data source. Installs

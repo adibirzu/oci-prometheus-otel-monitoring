@@ -161,6 +161,35 @@ KB-24/25/26/27 for the issues found and fixed.
 
 ![GCP → OTEL → Grafana](docs/screenshots/gcp-grafana-otel.png)
 
+### Unified multicloud collection (GCP + Azure + AWS together)
+
+Tag each VM's Prometheus with an `external_labels: { cloud: <name> }` and point all
+agents at **one** OCI Monitoring namespace (and all OTEL collectors at **one**
+Grafana) — now a single pane shows every cloud, split by the `cloud` label.
+
+A live run with **all three clouds at once** (one VM each in GCP/Azure/AWS, one
+shared central Grafana) produced this dashboard — **Clouds reporting: 3**, with
+`aws`/`azure`/`gcp` series across CPU, memory, network, and filesystem:
+
+![Multicloud metric collection in Grafana](docs/screenshots/multicloud-grafana.png)
+
+The same metrics landed in **one OCI Monitoring namespace** `prometheus_multicloud`,
+queryable by cloud — e.g. `node_load1[1m].mean()` returns a series per `cloud`
+dimension (`aws`, `azure`, `gcp`). Dashboard JSON: [`otel-destination/dashboards/multicloud.json`](otel-destination/dashboards/multicloud.json).
+
+### Discover instances across clouds
+
+[`discover-cloud-instances.sh`](discover-cloud-instances.sh) is the multicloud
+companion to `discover-oci-instances.sh` — it enumerates running instances in
+**AWS, Azure, GCP, or OCI** (or `all`) and emits cloud-labelled Prometheus targets:
+
+```bash
+./discover-cloud-instances.sh --cloud aws   --region eu-central-1
+./discover-cloud-instances.sh --cloud azure --resource-group my-rg
+./discover-cloud-instances.sh --cloud gcp   --project my-project
+./discover-cloud-instances.sh --cloud all   --region R --resource-group RG --project P --output targets
+```
+
 ## Install matrix
 
 | Role | OS | Script | Installs |
