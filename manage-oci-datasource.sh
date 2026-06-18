@@ -51,7 +51,9 @@ usage() {
   exit 1
 }
 
-list_raw() { oci_ management-agent agent list-data-sources --management-agent-id "$AGENT_ID" --all 2>/dev/null; }
+# Returns the data-sources JSON. When an agent has zero data sources the CLI
+# prints nothing; emit '{}' so downstream JSON parsing doesn't choke (KB-25).
+list_raw() { local out; out="$(oci_ management-agent agent list-data-sources --management-agent-id "$AGENT_ID" --all 2>/dev/null)"; echo "${out:-{}}"; }
 
 case "$ACTION" in
   list)

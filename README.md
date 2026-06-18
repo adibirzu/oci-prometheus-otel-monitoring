@@ -110,6 +110,53 @@ ALLOW group <G> to inspect compartments          in tenancy           # only for
 
 > `discovered-targets.json` contains private IPs and is git-ignored.
 
+## Cross-cloud: monitor GCP (or any) Linux instances
+
+The OCI Management Agent runs on **any** Linux host, so a VM in GCP, AWS, or
+on-prem can push to **OCI Monitoring** — and the same metrics can fan out to a
+**3rd-party** Grafana/Prometheus at the same time. `install-oci-agent-linux.sh`
+installs the agent on Linux (it installs OpenJDK 8 and sets `JAVA_HOME` for you —
+KB-24).
+
+```mermaid
+flowchart LR
+  subgraph GCP["GCP Linux VM (or AWS / on-prem)"]
+    NE[node_exporter :9100] --> PP[Prometheus :9090<br/>/federate]
+    PP --> MA[OCI Management Agent<br/>install-oci-agent-linux.sh]
+    PP --> OC[OTEL Collector<br/>install-otel-collector.sh]
+  end
+  MA -->|Prometheus datasource| OM[(OCI Monitoring<br/>namespace)]
+  OC -->|OTLP / remote_write| TP[(3rd-party:<br/>Grafana / Prometheus / Datadog)]
+```
+
+```bash
+# On the GCP/Linux VM: collect OS metrics + aggregate
+sudo ./install-node-exporter.sh
+#   run a Prometheus that scrapes localhost:9100 and serves /federate (e.g. :9099)
+
+# Path 1 — push to OCI Monitoring (fetch agent zip + build input.rsp on an OCI-CLI host first)
+sudo ./install-oci-agent-linux.sh --agent-zip oracle.mgmt_agent.zip --rsp input.rsp
+#   then add the /federate data source from an OCI-CLI host:
+./manage-oci-datasource.sh create --agent-id <AGENT_OCID> --compartment-id <C> \
+    --name gcp_prometheus --namespace prometheus_gcp --url 'http://localhost:9099/federate?...' --profile <P>
+
+# Path 2 — export to your 3rd-party backend (same metrics, in parallel)
+sudo ./install-otel-collector.sh --prometheus-url http://localhost:9099 \
+    --otlp-endpoint http://<dest>:4318 --remote-write http://<dest>:9090/api/v1/write --insecure
+```
+
+Required OCI IAM (one time): a `managementagent` dynamic group + a policy granting
+it `USE METRICS` in the compartment (see "Management Agent prerequisites"). The agent
+registers over outbound 443 to `*.oraclecloud.com`, which most clouds allow by default.
+
+Validated end-to-end on a real GCP VM (`europe-west1`) → both **OCI Monitoring**
+(`node_*` in the namespace, confirmed via `summarize-metrics-data`) and a **Grafana**
+sink. See KB-24/25/26 for the issues found and fixed.
+
+**GCP VM metrics in the 3rd-party Grafana (via the OTEL path):**
+
+![GCP → OTEL → Grafana](docs/screenshots/gcp-grafana-otel.png)
+
 ## Install matrix
 
 | Role | OS | Script | Installs |
@@ -119,6 +166,7 @@ ALLOW group <G> to inspect compartments          in tenancy           # only for
 | Target | Linux (GCP metrics) | `install-gcp-exporter.sh <project> <key.json> [prefixes]` | `stackdriver_exporter` |
 | Proxy | Windows | `Install-OCI-Prometheus.ps1` (Proxy) | Prometheus + optional OCI agent / GCP / OTEL |
 | Proxy | Linux (OTEL) | `install-otel-collector.sh` | OpenTelemetry Collector |
+| Proxy | Linux → OCI Monitoring | `install-oci-agent-linux.sh` | OCI Management Agent (any Linux host, incl. other clouds) |
 
 `Install-OCI-Prometheus.ps1` is interactive and saves answers to `config.json`
 (git-ignored) for unattended re-runs. The Proxy mode toggles are independent:

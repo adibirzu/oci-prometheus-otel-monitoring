@@ -27,3 +27,6 @@ firebase-debug.log
 
 # Discovery output — contains private IPs (topology)
 discovered-targets.json
+
+# Console captures / raw evidence (project IDs, OCIDs, IPs — redact before committing)
+docs/evidence/

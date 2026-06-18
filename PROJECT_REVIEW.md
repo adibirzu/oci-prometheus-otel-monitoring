@@ -67,6 +67,24 @@ any OCI-CLI host (the Windows proxy has no OCI CLI):
 - The agent's `CredentialWalletPassword` (in `input.rsp`) must be **≥16 chars with upper+lower+digit+special**, or `configure` fails the FIPS complexity check.
 - OCI **run-command on Windows runs as `nt service\ocarun` (non-admin)** — it can read logs/query services but cannot install services or set machine env vars; use cloud-init (SYSTEM) or RDP for privileged steps.
 
+## Cross-cloud (GCP) validation — 2026-06-18
+
+Provisioned a real **GCP** Ubuntu 22.04 VM (`gcloud`, `europe-west1`) and ran the
+**actual project scripts** to prove a non-OCI instance can feed both targets:
+
+| Step | Script | Result |
+|------|--------|--------|
+| OS metrics | `install-node-exporter.sh` | ✅ `:9100` serving, host firewall opened |
+| Aggregate | Prometheus (proxy) `/federate` on the VM | ✅ scraped node_exporter |
+| **Path 1 → OCI Monitoring** | **`install-oci-agent-linux.sh`** (NEW) + `manage-oci-datasource.sh create` | ✅ agent **ACTIVE**, 25+ `node_*` metrics in namespace; `node_load1=0.09`, `node_memory_MemAvailable_bytes≈7.27 GB` via `summarize-metrics-data` |
+| **Path 2 → 3rd-party** | `install-otel-collector.sh` → OTLP → Grafana/Prometheus sink | ✅ 255 `node_*` in sink; `otel_scope_name=…/prometheusreceiver` (screenshot in README) |
+
+Issues found & fixed: **KB-24** (Linux agent requires JDK 8 + `JAVA_HOME`),
+**KB-25** (`manage-oci-datasource.sh` crashed on an agent with zero data sources).
+All GCP and OCI test resources (VM, network, agent, install key, dynamic group,
+policy, data source) were **destroyed** afterward; the OCI Monitoring namespace
+data auto-expires.
+
 ## Reference
 - OCI CLI / Ansible install reference added to the `oci-observability-dbm-opsi` skill: `references/management-agent-prometheus.md`.
 - Linux Management Agent bootstrap reference: oracle-devrel `observability-and-management/management-agent`.

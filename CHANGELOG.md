@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Cross-cloud OCI Monitoring** via `install-oci-agent-linux.sh` — installs the OCI
+  Management Agent on any Linux host (GCP/AWS/on-prem), so non-OCI instances can push
+  to OCI Monitoring through a Prometheus `/federate` data source. Installs OpenJDK 8
+  and sets `JAVA_HOME` automatically. Validated end-to-end on a real GCP VM
+  (`europe-west1`) feeding **both** OCI Monitoring and a 3rd-party Grafana sink.
+- README "Cross-cloud" section + mermaid diagram + a GCP→OTEL→Grafana screenshot.
+- KB-24 (Linux agent needs JDK 8 + `JAVA_HOME`), KB-25 (empty `list-data-sources`),
+  KB-26 (cross-cloud agent → OCI Monitoring checklist).
 - `discover-oci-instances.sh` — enumerate RUNNING OCI compute instances in a
   compartment (or whole tenancy subtree) and generate Prometheus scrape targets,
   with per-OS exporter ports (Linux 9100 / Windows 9182). Outputs a human table,
@@ -28,6 +36,10 @@ All notable changes to this project are documented here. The format is based on
 - Hardened `.gitignore` (secrets, `.env*`, `*.pem`, `*.key`, `*.rsp`,
   `discovered-targets.json`).
 - Removed a developer-specific local path from `PROJECT_REVIEW.md`.
+
+### Fixed
+- `manage-oci-datasource.sh` no longer crashes with a JSON parse error when an agent
+  has zero data sources (the CLI returns empty output) — KB-25.
 
 ## [0.1.0] — 2026-06-17
 

@@ -180,3 +180,25 @@ infrastructure (see [`PROJECT_REVIEW.md`](../PROJECT_REVIEW.md) for the test rep
 - **Root cause:** The image's `operating-system` field didn't contain "Windows" (custom image), or `read instance-images` is missing so OS defaults to linux.
 - **Resolution:** Grant `read instance-images`; for custom images, edit the generated target's port to 9182 (or fix the merged `config.json`).
 - **File:** `discover-oci-instances.sh` (`os_family_for_image`).
+
+---
+
+## Cross-cloud (GCP) & Linux Management Agent
+
+### KB-24 — Linux Management Agent install aborts: *"Agent only supports JDK 8 … Please set JAVA_HOME"*
+- **Symptom:** `install-oci-agent-linux.sh` / the agent `installer.sh` stops at "Checking Java version" with *"JAVA_HOME is not set or not readable to root"* / *"Agent only supports JDK 8 with a minimum upgrade version JDK 8u281"*.
+- **Root cause:** Unlike some bundles, the Linux Management Agent ZIP does **not** ship a JRE — it requires **JDK 8 (>= 8u281)** on the host with `JAVA_HOME` set (the Linux analog of the Windows KB-08).
+- **Resolution:** `install-oci-agent-linux.sh` now installs OpenJDK 8 (`openjdk-8-jdk-headless` on Debian/Ubuntu, `java-1.8.0-openjdk-devel` on RHEL/OEL) and exports `JAVA_HOME` before running `installer.sh`.
+- **File:** `install-oci-agent-linux.sh` (`ensure_java8`).
+
+### KB-25 — `manage-oci-datasource.sh` crashes with `JSONDecodeError` on a fresh agent
+- **Symptom:** `list` / `create` / `destroy` throw `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)`.
+- **Root cause:** `oci management-agent agent list-data-sources` prints **nothing** (empty stdout) when an agent has zero data sources; the script piped that empty output into `json.load`.
+- **Resolution:** `list_raw` now emits `{}` when the CLI returns empty, so JSON parsing is always valid.
+- **File:** `manage-oci-datasource.sh` (`list_raw`).
+
+### KB-26 — Cross-cloud agent: metrics never reach OCI Monitoring
+- **Symptom:** Agent is ACTIVE on a non-OCI VM (GCP/AWS/on-prem) but the OCI Monitoring namespace stays empty.
+- **Root cause (checklist):** the data-source URL points at `/metrics` not `/federate` (KB-12); the dynamic-group/policy granting `USE METRICS` is missing; or the VM's egress can't reach OCI (`*.oraclecloud.com` 443). The agent itself registers over 443 outbound, which most clouds allow by default.
+- **Resolution:** Use the `/federate` URL, ensure the `managementagent` dynamic group + `USE METRICS` policy exist in the compartment, and confirm outbound 443 to OCI. Verify with `oci monitoring metric-data summarize-metrics-data --namespace <ns> --query-text 'node_load1[1m].mean()'`.
+- **File:** `install-oci-agent-linux.sh`, `manage-oci-datasource.sh`, README "Cross-cloud".
