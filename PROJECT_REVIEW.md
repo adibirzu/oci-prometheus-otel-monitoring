@@ -67,23 +67,30 @@ any OCI-CLI host (the Windows proxy has no OCI CLI):
 - The agent's `CredentialWalletPassword` (in `input.rsp`) must be **≥16 chars with upper+lower+digit+special**, or `configure` fails the FIPS complexity check.
 - OCI **run-command on Windows runs as `nt service\ocarun` (non-admin)** — it can read logs/query services but cannot install services or set machine env vars; use cloud-init (SYSTEM) or RDP for privileged steps.
 
-## Cross-cloud (GCP) validation — 2026-06-18
+## Cross-cloud validation (GCP + Azure + AWS) — 2026-06-18
 
-Provisioned a real **GCP** Ubuntu 22.04 VM (`gcloud`, `europe-west1`) and ran the
-**actual project scripts** to prove a non-OCI instance can feed both targets:
+Provisioned a real Ubuntu 22.04 VM in **each** of GCP, Azure, and AWS, and ran the
+**actual project scripts** to prove a non-OCI instance can feed both targets at once:
+`node_exporter → Prometheus /federate → [OCI Management Agent → OCI Monitoring] AND
+[OTEL Collector → Grafana/Prometheus sink]`.
 
-| Step | Script | Result |
-|------|--------|--------|
-| OS metrics | `install-node-exporter.sh` | ✅ `:9100` serving, host firewall opened |
-| Aggregate | Prometheus (proxy) `/federate` on the VM | ✅ scraped node_exporter |
-| **Path 1 → OCI Monitoring** | **`install-oci-agent-linux.sh`** (NEW) + `manage-oci-datasource.sh create` | ✅ agent **ACTIVE**, 25+ `node_*` metrics in namespace; `node_load1=0.09`, `node_memory_MemAvailable_bytes≈7.27 GB` via `summarize-metrics-data` |
-| **Path 2 → 3rd-party** | `install-otel-collector.sh` → OTLP → Grafana/Prometheus sink | ✅ 255 `node_*` in sink; `otel_scope_name=…/prometheusreceiver` (screenshot in README) |
+| Cloud (CLI, region) | Exec path | OCI Monitoring namespace | OCI Monitoring result | 3rd-party sink (OTEL) |
+|---|---|---|---|---|
+| **GCP** (`gcloud`, europe-west1) | SSH | `prometheus_gcp` | ✅ 25+ `node_*`; `node_load1=0.09`, `MemAvailable≈7.27 GB` | ✅ 255 `node_*`, `otel_scope_name=…/prometheusreceiver` (Grafana screenshot in README) |
+| **Azure** (`az`, westeurope) | `az vm run-command` (SSH blocked) | `prometheus_azure` | ✅ 451 `node_*`; `node_load1=0.33` | ✅ 247 `node_*`, otel receiver label |
+| **AWS** (`aws`, eu-central-1) | `aws ssm send-command` (SSH flaky) | `prometheus_aws` | ✅ 266 `node_*`; `node_load1=0.27` | ✅ `node_load1` via OTEL in sink |
+
+All three used the **same** cloud-agnostic scripts (`install-node-exporter.sh`,
+`install-oci-agent-linux.sh`, `install-otel-collector.sh`, `manage-oci-datasource.sh`);
+only the VM provisioning differs per cloud. The agent registers to OCI over outbound
+443, so the agent ZIP was delivered to the VMs via an OCI pre-authenticated request.
 
 Issues found & fixed: **KB-24** (Linux agent requires JDK 8 + `JAVA_HOME`),
-**KB-25** (`manage-oci-datasource.sh` crashed on an agent with zero data sources).
-All GCP and OCI test resources (VM, network, agent, install key, dynamic group,
-policy, data source) were **destroyed** afterward; the OCI Monitoring namespace
-data auto-expires.
+**KB-25** (`manage-oci-datasource.sh` crashed on an agent with zero data sources),
+**KB-27** (first-boot apt lock — now waited/retried), **KB-28** (no-SSH → use the
+cloud control plane). **Every** GCP, Azure, AWS, and OCI test resource (VMs, networks,
+IAM roles/SG, agents, install key, dynamic group, policy, data sources, temp bucket)
+was **destroyed** afterward; OCI Monitoring namespace data auto-expires (~93 days).
 
 ## Reference
 - OCI CLI / Ansible install reference added to the `oci-observability-dbm-opsi` skill: `references/management-agent-prometheus.md`.

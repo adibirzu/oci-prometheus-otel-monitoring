@@ -7,13 +7,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 - **Cross-cloud OCI Monitoring** via `install-oci-agent-linux.sh` — installs the OCI
-  Management Agent on any Linux host (GCP/AWS/on-prem), so non-OCI instances can push
-  to OCI Monitoring through a Prometheus `/federate` data source. Installs OpenJDK 8
-  and sets `JAVA_HOME` automatically. Validated end-to-end on a real GCP VM
-  (`europe-west1`) feeding **both** OCI Monitoring and a 3rd-party Grafana sink.
+  Management Agent on any Linux host (GCP/Azure/AWS/on-prem), so non-OCI instances can
+  push to OCI Monitoring through a Prometheus `/federate` data source. Installs
+  OpenJDK 8, sets `JAVA_HOME`, and waits out first-boot apt locks. Validated
+  end-to-end on real VMs in **GCP** (`europe-west1`), **Azure** (`westeurope`), and
+  **AWS** (`eu-central-1`) — each feeding **both** OCI Monitoring (its own namespace)
+  and a 3rd-party Grafana/Prometheus sink.
 - README "Cross-cloud" section + mermaid diagram + a GCP→OTEL→Grafana screenshot.
 - KB-24 (Linux agent needs JDK 8 + `JAVA_HOME`), KB-25 (empty `list-data-sources`),
-  KB-26 (cross-cloud agent → OCI Monitoring checklist).
+  KB-26 (cross-cloud agent → OCI Monitoring checklist), KB-27 (first-boot apt lock),
+  KB-28 (no-SSH → drive via `az vm run-command` / `aws ssm send-command`).
 - `discover-oci-instances.sh` — enumerate RUNNING OCI compute instances in a
   compartment (or whole tenancy subtree) and generate Prometheus scrape targets,
   with per-OS exporter ports (Linux 9100 / Windows 9182). Outputs a human table,

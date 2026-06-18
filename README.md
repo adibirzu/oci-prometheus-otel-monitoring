@@ -110,17 +110,17 @@ ALLOW group <G> to inspect compartments          in tenancy           # only for
 
 > `discovered-targets.json` contains private IPs and is git-ignored.
 
-## Cross-cloud: monitor GCP (or any) Linux instances
+## Cross-cloud: monitor GCP / Azure / AWS / on-prem Linux instances
 
-The OCI Management Agent runs on **any** Linux host, so a VM in GCP, AWS, or
+The OCI Management Agent runs on **any** Linux host, so a VM in GCP, Azure, AWS, or
 on-prem can push to **OCI Monitoring** — and the same metrics can fan out to a
 **3rd-party** Grafana/Prometheus at the same time. `install-oci-agent-linux.sh`
 installs the agent on Linux (it installs OpenJDK 8 and sets `JAVA_HOME` for you —
-KB-24).
+KB-24 — and waits out first-boot apt locks — KB-27).
 
 ```mermaid
 flowchart LR
-  subgraph GCP["GCP Linux VM (or AWS / on-prem)"]
+  subgraph GCP["Linux VM — GCP / Azure / AWS / on-prem"]
     NE[node_exporter :9100] --> PP[Prometheus :9090<br/>/federate]
     PP --> MA[OCI Management Agent<br/>install-oci-agent-linux.sh]
     PP --> OC[OTEL Collector<br/>install-otel-collector.sh]
@@ -149,9 +149,13 @@ Required OCI IAM (one time): a `managementagent` dynamic group + a policy granti
 it `USE METRICS` in the compartment (see "Management Agent prerequisites"). The agent
 registers over outbound 443 to `*.oraclecloud.com`, which most clouds allow by default.
 
-Validated end-to-end on a real GCP VM (`europe-west1`) → both **OCI Monitoring**
-(`node_*` in the namespace, confirmed via `summarize-metrics-data`) and a **Grafana**
-sink. See KB-24/25/26 for the issues found and fixed.
+Validated end-to-end on real VMs in **GCP** (`europe-west1`), **Azure**
+(`westeurope`), and **AWS** (`eu-central-1`) → each pushed `node_*` to its own
+**OCI Monitoring** namespace (`prometheus_gcp` / `prometheus_azure` /
+`prometheus_aws`, confirmed via `summarize-metrics-data`) **and** to a **Grafana**
+sink in parallel. Where SSH to the VM was blocked, the setup was driven over the
+cloud control plane (`az vm run-command`, `aws ssm send-command`) — see KB-28. See
+KB-24/25/26/27 for the issues found and fixed.
 
 **GCP VM metrics in the 3rd-party Grafana (via the OTEL path):**
 

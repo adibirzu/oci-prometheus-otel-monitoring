@@ -202,3 +202,15 @@ infrastructure (see [`PROJECT_REVIEW.md`](../PROJECT_REVIEW.md) for the test rep
 - **Root cause (checklist):** the data-source URL points at `/metrics` not `/federate` (KB-12); the dynamic-group/policy granting `USE METRICS` is missing; or the VM's egress can't reach OCI (`*.oraclecloud.com` 443). The agent itself registers over 443 outbound, which most clouds allow by default.
 - **Resolution:** Use the `/federate` URL, ensure the `managementagent` dynamic group + `USE METRICS` policy exist in the compartment, and confirm outbound 443 to OCI. Verify with `oci monitoring metric-data summarize-metrics-data --namespace <ns> --query-text 'node_load1[1m].mean()'`.
 - **File:** `install-oci-agent-linux.sh`, `manage-oci-datasource.sh`, README "Cross-cloud".
+
+### KB-27 — Agent install fails at first boot (apt/dpkg busy)
+- **Symptom:** On a freshly-booted Azure/AWS Ubuntu VM, `install-oci-agent-linux.sh` exits with no/little output and the agent never installs; re-running a few minutes later works.
+- **Root cause:** At first boot `cloud-init` / `unattended-upgrades` hold the apt/dpkg lock, so the JDK 8 install fails transiently — and under `set -e` the script exits before printing much.
+- **Resolution:** `install-oci-agent-linux.sh` now waits for the apt/dpkg lock to clear (`wait_for_apt`) and retries the install (`apt_install`). If you still hit it on a very busy first boot, wait ~2 min and re-run, or pre-install `openjdk-8-jdk-headless`.
+- **File:** `install-oci-agent-linux.sh` (`wait_for_apt`, `apt_install`).
+
+### KB-28 — No SSH to a cloud VM (port 22 blocked/flaky) — use the control plane
+- **Symptom:** `ssh`/`scp` to a fresh cloud VM times out on port 22 (intermittently or always), blocking setup.
+- **Root cause:** Network path / egress restrictions to that cloud's public IPs, or a security group/NSG gap.
+- **Resolution:** Drive the VM over the cloud's control-plane exec instead of SSH — **Azure**: `az vm run-command invoke … --command-id RunShellScript`; **AWS**: attach an SSM instance profile (`AmazonSSMManagedInstanceCore`) and `aws ssm send-command` (reboot once if it was launched without the profile); **GCP**: `gcloud compute ssh` (IAP) or the serial console. For large files (e.g. the 115 MB agent ZIP), create an OCI pre-authenticated request (PAR) and `curl` it on the VM.
+- **File:** operational note (cross-cloud testing).

@@ -46,7 +46,19 @@ if [ "$EUID" -ne 0 ]; then echo "Please run as root (sudo)." >&2; exit 1; fi
 [ -z "$RSP" ] && { echo "Provide --rsp <input.rsp>." >&2; exit 1; }
 [ -f "$RSP" ] || { echo "Response file not found: $RSP" >&2; exit 1; }
 
-command -v unzip >/dev/null 2>&1 || { echo "Installing unzip..."; (apt-get update -qq && apt-get install -y -qq unzip) || yum install -y unzip || true; }
+# At cloud first-boot, apt/dpkg is often locked by cloud-init / unattended-upgrades.
+# Wait for the lock to clear and retry, so installs don't fail under `set -e` (KB-27).
+wait_for_apt() {
+  command -v apt-get >/dev/null 2>&1 || return 0
+  for _ in $(seq 1 30); do
+    if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && \
+       ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then return 0; fi
+    echo "  waiting for apt/dpkg lock to clear..."; sleep 10
+  done
+}
+apt_install() { for i in 1 2 3; do apt-get install -y -qq "$@" && return 0; echo "  apt retry $i..."; sleep 15; done; return 1; }
+
+command -v unzip >/dev/null 2>&1 || { echo "Installing unzip..."; { wait_for_apt; apt-get update -qq && apt_install unzip; } || yum install -y unzip || true; }
 
 # The OCI Management Agent for Linux requires JDK 8 (>= 8u281) with JAVA_HOME set,
 # and does NOT bundle a JRE (KB-24). Install OpenJDK 8 if a suitable Java is absent.
@@ -64,7 +76,7 @@ ensure_java8() {
   local jhome; jhome="$(resolve_java8_home)"
   if [ -z "$jhome" ] || [ ! -x "$jhome/bin/java" ]; then
     echo "Installing OpenJDK 8..."
-    if command -v apt-get >/dev/null 2>&1; then apt-get update -qq && apt-get install -y -qq openjdk-8-jdk-headless
+    if command -v apt-get >/dev/null 2>&1; then wait_for_apt; apt-get update -qq || true; apt_install openjdk-8-jdk-headless
     elif command -v dnf >/dev/null 2>&1; then dnf install -y java-1.8.0-openjdk-devel
     elif command -v yum >/dev/null 2>&1; then yum install -y java-1.8.0-openjdk-devel
     else echo "No supported package manager to install JDK 8; install it manually." >&2; exit 1
