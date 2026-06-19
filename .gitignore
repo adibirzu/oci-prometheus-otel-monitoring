@@ -30,3 +30,6 @@ discovered-targets.json
 
 # Console captures / raw evidence (project IDs, OCIDs, IPs — redact before committing)
 docs/evidence/
+
+# Blog drafts (may contain unredacted notes — keep out of the repo)
+docs/blog/

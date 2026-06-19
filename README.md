@@ -191,6 +191,11 @@ agents publish):
   `cloud` dimension**, so this already plots **aws / azure / gcp** as 3 lines. Leave
   *Aggregate metric streams* **off**. Filter one cloud with `node_load1[1m]{cloud = "aws"}.mean()`.
 
+  ![Multicloud metrics in OCI Monitoring Metrics Explorer](docs/screenshots/multicloud-oci-metrics-explorer.png)
+
+  *`node_load1[1m].mean()` over `prometheus_multicloud` — three lines, one per cloud
+  (aws/azure/gcp), all reporting into a single OCI Monitoring namespace. (Agent OCIDs redacted.)*
+
 Gotchas worth knowing: the namespace dropdown is alphabetical (custom namespaces
 sort **after** all `oci_*` — search `prometheus`), it only lists namespaces with
 data **inside the selected time window** (set a recent range), and metrics land in
