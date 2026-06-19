@@ -35,6 +35,48 @@ A single Prometheus aggregation on the proxy feeds two independent export paths.
 Editable diagram: [`docs/architecture.drawio`](docs/architecture.drawio) ·
 rendered: [`docs/architecture.svg`](docs/architecture.svg).
 
+## Architecture
+
+### Components
+
+| Component | Runs on | Port | Role |
+|---|---|---|---|
+| `node_exporter` | Linux target | `9100` | OS metrics (CPU/mem/disk/net/fs) in Prometheus format |
+| `windows_exporter` | Windows target | `9182` | same, for Windows hosts |
+| `stackdriver_exporter` | Linux (optional) | `9255` | pulls GCP Monitoring metrics into Prometheus |
+| **Prometheus (proxy)** | proxy host | `9090`/`9099` | scrapes the exporters, adds an `external_labels` `cloud` tag, serves `/federate` |
+| **OCI Management Agent** | proxy / any Linux | — (outbound `443`) | scrapes `/federate`, publishes to an OCI Monitoring namespace |
+| **OTEL Collector** | proxy / any Linux | — (outbound) | scrapes `/federate`, forwards via OTLP / `remote_write` to your tooling |
+
+### How one metric travels
+
+1. An exporter exposes e.g. `node_load1` on its port.
+2. The proxy **Prometheus** scrapes it and stamps `external_labels: { cloud: <name> }`
+   → `node_load1{instance=…, job=…, cloud=gcp}` lands in the TSDB.
+3. Both readers pull the same **`/federate`** endpoint (the labelled exporter series —
+   *not* Prometheus' own `/metrics`):
+   - the **OCI Management Agent** posts it to OCI Monitoring, where `cloud` becomes a
+     queryable **dimension**;
+   - the **OTEL Collector** `remote_write`s / OTLP-pushes it to your backend.
+4. In OCI, `node_load1[1m].mean()` returns **one stream per `cloud`** → a line per cloud.
+
+### The two export paths
+
+Both run from the same `/federate`, independently — enable either or both:
+
+| | Path 1 — OCI Monitoring (Management Agent) | Path 2 — OpenTelemetry (Collector) |
+|---|---|---|
+| **Destination** | OCI Monitoring namespace | anything speaking OTLP or Prometheus `remote_write` |
+| **Query** | MQL (OCI Console / API), alarms, IAM-scoped | PromQL / your tool |
+| **Best for** | one central OCI pane + alarms; ~93-day retention | reuse an existing Grafana/Prometheus; no lock-in |
+| **Transport** | outbound HTTPS `443` to OCI | outbound to your endpoint (OTLP `4318` / remote_write) |
+
+> **Why it works from any cloud:** the Management Agent makes only **outbound 443**
+> calls to `*.oraclecloud.com` — no inbound rules, no VPN, no peering. It authenticates
+> with an install key, registers as a `managementagent` resource in your compartment,
+> and pushes metrics out. That is why the same agent runs identically on GCP, Azure,
+> AWS, or on-prem (see [Cross-cloud](#cross-cloud-monitor-gcp--azure--aws--on-prem-linux-instances)).
+
 ## Quick start — OTEL only (no OCI Monitoring)
 
 The fastest path if your destination is **not** OCI Monitoring.
