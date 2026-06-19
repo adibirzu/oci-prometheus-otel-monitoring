@@ -173,9 +173,29 @@ shared central Grafana) produced this dashboard — **Clouds reporting: 3**, wit
 
 ![Multicloud metric collection in Grafana](docs/screenshots/multicloud-grafana.png)
 
-The same metrics landed in **one OCI Monitoring namespace** `prometheus_multicloud`,
-queryable by cloud — e.g. `node_load1[1m].mean()` returns a series per `cloud`
-dimension (`aws`, `azure`, `gcp`). Dashboard JSON: [`otel-destination/dashboards/multicloud.json`](otel-destination/dashboards/multicloud.json).
+The same metrics land in **one OCI Monitoring namespace** `prometheus_multicloud`,
+queryable per cloud. Two ways to see it in the OCI Console (region = where your
+agents publish):
+
+- **Management Agents** (Observability & Management → Management Agents) — lists one
+  Management Agent **per source cloud** (the GCP/Azure/AWS VMs), all `ACTIVE`. The
+  clearest proof that every cloud reports into one OCI tenancy.
+- **Metrics Explorer** (Monitoring → Metrics Explorer → **Add query**) — pick your
+  compartment + namespace **`prometheus_multicloud`**, then this MQL:
+
+  ```
+  node_load1[1m].mean()
+  ```
+
+  OCI MQL has no PromQL-style `by (cloud)` — it auto-splits into **one line per
+  `cloud` dimension**, so this already plots **aws / azure / gcp** as 3 lines. Leave
+  *Aggregate metric streams* **off**. Filter one cloud with `node_load1[1m]{cloud = "aws"}.mean()`.
+
+Gotchas worth knowing: the namespace dropdown is alphabetical (custom namespaces
+sort **after** all `oci_*` — search `prometheus`), it only lists namespaces with
+data **inside the selected time window** (set a recent range), and metrics land in
+the **specific compartment** set on the data source. Data is retained ~93 days.
+Dashboard JSON: [`otel-destination/dashboards/multicloud.json`](otel-destination/dashboards/multicloud.json).
 
 ### Discover instances across clouds
 
