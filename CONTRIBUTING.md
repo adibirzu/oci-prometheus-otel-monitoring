@@ -48,5 +48,5 @@ Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `ci:`,
 In scope: exporters install/config, the Prometheus proxy, OCI Management Agent
 integration, the OTEL export path, OCI instance discovery, the test sink, docs.
 
-Out of scope: vendoring large binaries (beyond the bundled `nssm.exe`), and
-anything that hardcodes environment-specific values.
+Out of scope: vendoring large binaries or anything that hardcodes
+environment-specific values.

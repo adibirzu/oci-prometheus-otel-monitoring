@@ -12,7 +12,7 @@ processors:
   batch: {}
 
 exporters:
-  prometheusremotewrite:
+  prometheus_remote_write:
     endpoint: "http://prometheus:9090/api/v1/write"
     tls:
       insecure: true
@@ -24,4 +24,4 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [prometheusremotewrite, debug]
+      exporters: [prometheus_remote_write, debug]

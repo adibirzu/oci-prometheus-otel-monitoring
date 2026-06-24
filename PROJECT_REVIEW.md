@@ -21,7 +21,7 @@ Provisioned a full topology and ran the **actual project scripts**:
 |---|----------|-------|-----|
 | 1 | HIGH | `Install-OCIAgent` passed `installer.bat Correlation.rspFile="…"`; the real Management Agent `installer.bat` takes the response file **positionally** (`installer.bat <input.rsp>`) → agent never installs. | Positional arg. |
 | 2 | HIGH | `Ensure-Java8` installed Corretto but never set **`JAVA_HOME`** → agent `configure` aborts with *"JAVA_HOME … is not SET"*. | Resolve + set `JAVA_HOME` (Machine + process). |
-| 3 | HIGH | NSSM downloaded from `nssm.cc` (returned **503** in 3 of 3 hits across runs) with no error handling → `Download-File` continued and Prometheus service silently never installed; even with retry, `nssm.cc` is a single point of failure. | `Download-File` now retries + validates + fail-fasts; `Install-NSSM` tries **multiple sources** (`nssm.cc` → durable Internet Archive mirror of the same file) and supports a **bundled** `vendor\nssm\win64\nssm.exe` for offline installs. |
+| 3 | HIGH | NSSM downloaded from `nssm.cc` (returned **503** in 3 of 3 hits across runs) with no error handling → `Download-File` continued and Prometheus service silently never installed; even with retry, `nssm.cc` is a single point of failure. | `Download-File` now retries + validates + fail-fasts; `Install-NSSM` tries a **public GitHub release** first, then `nssm.cc` and an Internet Archive mirror. |
 | 4 | HIGH | `windows_exporter` collector list included **`cs`**, removed in ≥0.31 → service exits with `unknown collector cs`. | Collector list now `cpu,cpu_info,logical_disk,net,os,service,system,textfile,memory,tcp,udp`. |
 | 5 | HIGH | **Data source design**: README told users to scrape `http://localhost:9090/metrics`, which only exposes Prometheus' *own* telemetry — the exporter series require **`/federate`**. | README + final message now document `/federate?match[]={job=~".+"}` + the `create-prometheus-datasource` CLI. |
 | 6 | HIGH | `install-node-exporter.sh` / `install-gcp-exporter.sh` never opened the **host firewall**; OCI Linux images block 9100/9255 (firewalld on OEL, default iptables REJECT on Ubuntu) → Prometheus scrapes time out. | Both scripts now open the port (firewalld/ufw/iptables). |
@@ -91,6 +91,21 @@ Issues found & fixed: **KB-24** (Linux agent requires JDK 8 + `JAVA_HOME`),
 cloud control plane). **Every** GCP, Azure, AWS, and OCI test resource (VMs, networks,
 IAM roles/SG, agents, install key, dynamic group, policy, data sources, temp bucket)
 was **destroyed** afterward; OCI Monitoring namespace data auto-expires (~93 days).
+
+## DefenseDemo OCI Monitoring smoke validation — 2026-06-24
+
+Validated the tenant-side OCI Monitoring path with the local `emdemo` profile:
+
+- Posted a temporary custom metric into namespace `prometheus_codex_e2e`.
+- Queried `node_load1[1m].mean()` back from OCI Monitoring.
+- Confirmed returned dimensions: `cloud=oci`, `job=codex-e2e`, `source=script-validation`.
+- Captured redacted evidence screenshots:
+  - `docs/screenshots/defensedemo-oci-monitoring-e2e.png`
+  - `docs/screenshots/defensedemo-oci-monitoring-e2e-full.png`
+
+Attempted to extend the test to a full Management Agent install, but the current
+profile cannot create a temporary Management Agent install key in the target
+compartment (`NotAuthorizedOrNotFound`). No VM or install key was created.
 
 ## Reference
 - OCI CLI / Ansible install reference added to the `oci-observability-dbm-opsi` skill: `references/management-agent-prometheus.md`.

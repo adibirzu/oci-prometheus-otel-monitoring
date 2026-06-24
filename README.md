@@ -238,6 +238,12 @@ agents publish):
   *`node_load1[1m].mean()` over `prometheus_multicloud` — three lines, one per cloud
   (aws/azure/gcp), all reporting into a single OCI Monitoring namespace. (Agent OCIDs redacted.)*
 
+**DefenseDemo tenant smoke test:** a live OCI Monitoring API validation posted and
+queried `node_load1` in namespace `prometheus_codex_e2e` with dimensions
+`cloud=oci`, `job=codex-e2e`, and `source=script-validation`.
+
+![DefenseDemo OCI Monitoring E2E evidence](docs/screenshots/defensedemo-oci-monitoring-e2e.png)
+
 Gotchas worth knowing: the namespace dropdown is alphabetical (custom namespaces
 sort **after** all `oci_*` — search `prometheus`), it only lists namespaces with
 data **inside the selected time window** (set a recent range), and metrics land in

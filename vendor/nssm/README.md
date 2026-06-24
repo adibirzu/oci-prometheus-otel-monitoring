@@ -1,6 +1,6 @@
-# Bundled NSSM (the Non-Sucking Service Manager) v2.24
+# NSSM (the Non-Sucking Service Manager)
 
-`win64/nssm.exe` is bundled so the installer never depends on `nssm.cc` (which
-has repeatedly returned HTTP 503). NSSM is **public domain** — see https://nssm.cc/.
-`Install-NSSM` in `Install-OCI-Prometheus.ps1` uses this binary if present and only
-falls back to downloading when it is absent.
+The installer downloads NSSM from public release sources at runtime instead of
+committing `nssm.exe` to the repository. It tries a public GitHub release first,
+then falls back to https://nssm.cc/ and an Internet Archive mirror because
+`nssm.cc` has repeatedly returned HTTP 503. NSSM is public domain.

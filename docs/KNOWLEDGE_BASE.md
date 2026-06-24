@@ -38,8 +38,8 @@ infrastructure (see [`PROJECT_REVIEW.md`](../PROJECT_REVIEW.md) for the test rep
 ### KB-03 — NSSM download fails (HTTP 503) → Prometheus service never installed
 - **Symptom:** Prometheus service absent; logs show a failed download from `nssm.cc`.
 - **Root cause:** `nssm.cc` intermittently returns **503** and was a single point of failure; the downloader swallowed the error and continued.
-- **Resolution:** `Download-File` now retries (3×), validates non-empty output, and fail-fasts. `Install-NSSM` tries multiple sources (`nssm.cc` → durable Internet Archive mirror) and supports a **bundled** `vendor\nssm\win64\nssm.exe` for fully offline installs.
-- **File:** `Install-OCI-Prometheus.ps1` (`Download-File`, `Install-NSSM`), `vendor/nssm/`.
+- **Resolution:** `Download-File` now retries (3×), validates non-empty output, and fail-fasts. `Install-NSSM` tries a public GitHub release first, then `nssm.cc` and an Internet Archive mirror.
+- **File:** `Install-OCI-Prometheus.ps1` (`Download-File`, `Install-NSSM`).
 
 ### KB-04 — Script aborts on Windows PowerShell 5.1 with a parser error
 - **Symptom:** `The term '?' is not recognized` / parser error on Server 2012 R2 / Windows 8.1.

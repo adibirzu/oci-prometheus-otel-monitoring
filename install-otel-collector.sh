@@ -68,12 +68,12 @@ if [ -n "$OTLP_ENDPOINT" ]; then
     PIPELINE_EXP="otlphttp"
 fi
 if [ -n "$REMOTE_WRITE" ]; then
-    EXPORTERS+="  prometheusremotewrite:
+    EXPORTERS+="  prometheus_remote_write:
     endpoint: \"$REMOTE_WRITE\"
     tls:
       insecure: $INSECURE
 "
-    [ -n "$PIPELINE_EXP" ] && PIPELINE_EXP="$PIPELINE_EXP, prometheusremotewrite" || PIPELINE_EXP="prometheusremotewrite"
+    [ -n "$PIPELINE_EXP" ] && PIPELINE_EXP="$PIPELINE_EXP, prometheus_remote_write" || PIPELINE_EXP="prometheus_remote_write"
 fi
 
 mkdir -p /etc/otelcol

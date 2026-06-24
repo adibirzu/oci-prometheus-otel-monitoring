@@ -31,7 +31,7 @@ $LogsDir = Join-Path $ScriptDir "logs"
 # Default Versions
 $DefaultWindowsExporterVersion = "0.31.7"
 $DefaultPrometheusVersion = "3.12.0"
-$DefaultNssmVersion = "2.24"
+$DefaultNssmVersion = "2.25"
 $DefaultGcpExporterVersion = "0.19.0"
 $DefaultOtelVersion = "0.154.0"
 
@@ -39,14 +39,13 @@ $DefaultOtelVersion = "0.154.0"
 # 0.31.x requires Win10+/Server2016+; 0.25.1 is the last broadly-compatible build.
 $LegacyWindowsExporterVersion = "0.25.1"
 
-# URLs — NSSM is fetched from the official site first, then a durable Internet
-# Archive mirror of the same file. nssm.cc intermittently returns HTTP 503, which
-# would otherwise abort the whole install, so a mirror removes that single point
-# of failure. (NSSM is public domain.) To run fully offline, drop nssm.exe at
-# <script dir>\vendor\nssm\win64\nssm.exe and it is used without any download.
+# URLs — NSSM is fetched from a public GitHub release first. The original
+# nssm.cc release site is retained as a fallback, but it intermittently returns
+# HTTP 503 and should not be the primary install path. NSSM is public domain.
 $NssmUrls = @(
-    "https://nssm.cc/release/nssm-$DefaultNssmVersion.zip",
-    "https://web.archive.org/web/2id_/https://nssm.cc/release/nssm-$DefaultNssmVersion.zip"
+    "https://github.com/dkxce/NSSM/releases/download/v$DefaultNssmVersion/NSSM_v$DefaultNssmVersion.zip",
+    "https://nssm.cc/release/nssm-2.24.zip",
+    "https://web.archive.org/web/2id_/https://nssm.cc/release/nssm-2.24.zip"
 )
 
 # ---------------------------------------------------------------------------
@@ -130,16 +129,7 @@ function Install-NSSM {
     $TargetExe  = Join-Path $ExtractDir "nssm-$DefaultNssmVersion\win64\nssm.exe"
     if (Test-Path $TargetExe) { return }
 
-    # 1) Offline/bundled nssm.exe shipped next to the script.
-    $Bundled = Join-Path $ScriptDir "vendor\nssm\win64\nssm.exe"
-    if (Test-Path $Bundled) {
-        Write-Log "Using bundled nssm.exe ($Bundled)"
-        New-Item -ItemType Directory -Path (Split-Path $TargetExe) -Force | Out-Null
-        Copy-Item $Bundled $TargetExe -Force
-        return
-    }
-
-    # 2) Download from the first reachable source (official site, then mirror).
+    # Download from the first reachable public source (official site, then mirror).
     $ZipPath = Join-Path $DownloadsDir "nssm.zip"
     $got = $false
     foreach ($u in $NssmUrls) {
@@ -147,8 +137,17 @@ function Install-NSSM {
         try { Download-File -Url $u -Dest $ZipPath; $got = $true; break }
         catch { Write-Log "NSSM source unavailable: $u" "WARN" }
     }
-    if (-not $got) { throw "Could not obtain NSSM from any source. Ship vendor\nssm\win64\nssm.exe next to the script for offline installs." }
+    if (-not $got) { throw "Could not obtain NSSM from any configured public source." }
     Expand-Archive-Force -Path $ZipPath -Dest $ExtractDir
+    if (-not (Test-Path $TargetExe)) {
+        $ExtractedExe = Get-ChildItem -Path $ExtractDir -Recurse -Filter "nssm.exe" |
+            Where-Object { $_.FullName -match '[\\/]win64[\\/]nssm\.exe$' } |
+            Select-Object -First 1
+        if ($ExtractedExe) {
+            New-Item -ItemType Directory -Path (Split-Path $TargetExe) -Force | Out-Null
+            Copy-Item -Path $ExtractedExe.FullName -Destination $TargetExe -Force
+        }
+    }
     if (-not (Test-Path $TargetExe)) { throw "nssm.exe not found after extraction at $TargetExe" }
 }
 
@@ -290,8 +289,8 @@ function Install-OTELCollector {
         $expNames += "otlphttp"
     }
     if ($PromRemoteWriteEndpoint) {
-        $exporters += "  prometheusremotewrite:`n    endpoint: `"$PromRemoteWriteEndpoint`"`n    tls:`n      insecure: $insecureBool"
-        $expNames += "prometheusremotewrite"
+        $exporters += "  prometheus_remote_write:`n    endpoint: `"$PromRemoteWriteEndpoint`"`n    tls:`n      insecure: $insecureBool"
+        $expNames += "prometheus_remote_write"
     }
     if ($expNames.Count -eq 0) { throw "OTEL enabled but no OtlpEndpoint or OtelPromRemoteWriteEndpoint configured." }
     $expBlock = $exporters -join "`n"
