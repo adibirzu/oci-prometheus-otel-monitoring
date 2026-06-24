@@ -34,3 +34,6 @@ docs/evidence/
 
 # Blog drafts (may contain unredacted notes — keep out of the repo)
 docs/blog/
+
+# Local end-to-end scratch space
+.e2e-tmp/

@@ -24,6 +24,8 @@ All notable changes to this project are documented here. The format is based on
 - README "Cross-cloud" section + mermaid diagram + a GCP→OTEL→Grafana screenshot.
 - DefenseDemo/`emdemo` OCI Monitoring smoke-test evidence screenshots for
   `prometheus_codex_e2e` / `node_load1[1m].mean()`.
+- Fresh disposable e2e validation notes for the OTEL data path and current
+  DefenseDemo IAM blockers.
 - KB-24 (Linux agent needs JDK 8 + `JAVA_HOME`), KB-25 (empty `list-data-sources`),
   KB-26 (cross-cloud agent → OCI Monitoring checklist), KB-27 (first-boot apt lock),
   KB-28 (no-SSH → drive via `az vm run-command` / `aws ssm send-command`).
@@ -53,6 +55,8 @@ All notable changes to this project are documented here. The format is based on
   from a public GitHub release first, with `nssm.cc` and Internet Archive fallbacks.
 - Updated OTEL Collector configs to use the current `prometheus_remote_write`
   exporter key instead of the deprecated alias.
+- Ignored `.e2e-tmp/` local scratch directories created during disposable
+  validation runs.
 
 ### Fixed
 - `manage-oci-datasource.sh` no longer crashes with a JSON parse error when an agent

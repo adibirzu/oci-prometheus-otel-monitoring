@@ -107,6 +107,32 @@ Attempted to extend the test to a full Management Agent install, but the current
 profile cannot create a temporary Management Agent install key in the target
 compartment (`NotAuthorizedOrNotFound`). No VM or install key was created.
 
+## Fresh end-to-end validation loop - 2026-06-24
+
+Started from a clean `main` checkout and attempted a from-zero live run:
+
+- **DefenseDemo/`emdemo` OCI infrastructure:** blocked before resource creation.
+  The profile can discover compartments and query Monitoring, but cannot launch
+  a validation VM or create a one-use Management Agent install key in the tested
+  compartments (`NotAuthorizedOrNotFound`). The probe created no VM and no install
+  key.
+- **Other configured OCI profiles:** sampled accessible compartments for the
+  Management Agent install-key prerequisite; no sampled profile/compartment could
+  create the required one-use key. Profiles with invalid/non-JSON CLI responses
+  were skipped.
+- **Systemd script host:** Docker/Colima could not keep a privileged Ubuntu
+  systemd container running, so the Linux systemd installers could not be
+  faithfully executed in this local container runtime.
+- **Disposable data-plane e2e:** created a local Docker topology:
+  `node_exporter 1.11.1 -> Prometheus 3.12.0 /federate -> OTEL Collector 0.154.0 -> Prometheus remote_write sink`.
+  Verified `node_load1` at the source and at the sink. The sink series carried
+  `cloud="docker"` and `otel_scope_name=".../prometheusreceiver"`, proving it
+  traversed the OTEL collector. The sink also returned 547 OTEL-scoped series and
+  542 `cloud="docker"` series.
+
+All local containers, the temporary systemd image, and scratch files were removed
+after validation. No cloud resources were left behind.
+
 ## Reference
 - OCI CLI / Ansible install reference added to the `oci-observability-dbm-opsi` skill: `references/management-agent-prometheus.md`.
 - Linux Management Agent bootstrap reference: oracle-devrel `observability-and-management/management-agent`.
