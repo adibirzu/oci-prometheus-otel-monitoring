@@ -15,25 +15,19 @@ can run together.
 
 ## Workflow
 
-```mermaid
-flowchart LR
-  subgraph D["1. Discover (discover-oci-instances.sh)"]
-    OCI[(OCI tenancy /<br/>compartment)] -->|list RUNNING instances<br/>VNIC private IP + OS| TGT[targets ->config.json<br/>TargetNodes]
-  end
-  TGT --> PROXY
-  subgraph N["2. Targets (exporters)"]
-    L[Linux<br/>node_exporter :9100]
-    W[Windows<br/>windows_exporter :9182]
-    G[GCP<br/>stackdriver_exporter :9255]
-  end
-  L & W & G --> PROXY["3. Prometheus proxy :9090<br/>/federate (aggregates all)"]
-  PROXY -->|path 1 — OPTIONAL| MA[OCI Management Agent] --> OCIM[(OCI Monitoring)]
-  PROXY -->|path 2 — OPTIONAL| OTEL[OTEL Collector] -->|OTLP/HTTP +<br/>remote_write| SINK[(Your backend:<br/>Grafana / Datadog /<br/>Prometheus / …)]
-```
+![OCI and Multi-cloud Metrics Architecture](docs/diagrams/oci-prometheus-otel-architecture.svg)
 
 A single Prometheus aggregation on the proxy feeds two independent export paths.
-Editable diagram: [`docs/architecture.drawio`](docs/architecture.drawio) ·
-rendered: [`docs/architecture.svg`](docs/architecture.svg).
+Editable diagrams:
+[`docs/diagrams/oci-prometheus-otel-architecture.excalidraw`](docs/diagrams/oci-prometheus-otel-architecture.excalidraw)
+and legacy [`docs/architecture.drawio`](docs/architecture.drawio).
+
+The operational flow is:
+
+1. Discover running compute instances and render normalized scrape targets.
+2. Install exporters on the target hosts.
+3. Run a Prometheus proxy that scrapes the exporters and exposes `/federate`.
+4. Send the same federated metric stream to OCI Monitoring, OpenTelemetry, or both.
 
 ## Architecture
 
@@ -76,6 +70,25 @@ Both run from the same `/federate`, independently — enable either or both:
 > with an install key, registers as a `managementagent` resource in your compartment,
 > and pushes metrics out. That is why the same agent runs identically on GCP, Azure,
 > AWS, or on-prem (see [Cross-cloud](#cross-cloud-monitor-gcp--azure--aws--on-prem-linux-instances)).
+
+### Target discovery workflow
+
+Both public discovery commands are kept:
+
+- [`discover-oci-instances.sh`](discover-oci-instances.sh) remains the OCI-focused
+  quick-start interface.
+- [`discover-cloud-instances.sh`](discover-cloud-instances.sh) remains the multicloud
+  interface for OCI, AWS, Azure, GCP, or all supported clouds.
+
+Both commands delegate normalization and rendering to
+[`lib/target-discovery.sh`](lib/target-discovery.sh). The shared module produces the
+same target record shape for table output, Prometheus `file_sd_config`, and
+`config.json` `TargetNodes` merges.
+
+![Target Discovery Workflow](docs/diagrams/target-discovery-workflow.svg)
+
+Editable source:
+[`docs/diagrams/target-discovery-workflow.excalidraw`](docs/diagrams/target-discovery-workflow.excalidraw).
 
 ## Quick start — OTEL only (no OCI Monitoring)
 
@@ -343,25 +356,19 @@ For a Linux Management Agent proxy, see the
 
 ## Test architecture
 
-```mermaid
-flowchart LR
-  subgraph Local["Local validation (Docker — runs anywhere)"]
-    EX[exporter / telemetrygen] --> OC[OTEL Collector<br/>4317/4318]
-    OC -->|remote_write| PR[Prometheus :9090]
-    PR --> GR[Grafana :3000]
-  end
-  subgraph Live["Live OCI validation (with credentials)"]
-    DISC[discover-oci-instances.sh] --> VM[test VM<br/>node_exporter]
-    VM --> PX[Prometheus proxy /federate]
-    PX --> DS[manage-oci-datasource.sh] --> OM[(OCI Monitoring)]
-    PX --> OS[OTEL sink]
-    OM -.->|teardown| X[destroy datasource + VM]
-  end
-```
+![Deployment Validation Workflow](docs/diagrams/deployment-validation-workflow.svg)
 
 See [`PROJECT_REVIEW.md`](PROJECT_REVIEW.md) for the full end-to-end report and
 the validated topology (Windows Server 2022 proxy + Ubuntu/Oracle-Linux targets +
 the Dockerized OTEL→Prometheus→Grafana sink).
+
+The validation workflow starts with local checks, brings up the disposable
+destination stack, verifies the source Prometheus `/federate` endpoint, confirms
+the OTEL `remote_write` path in Prometheus/Grafana, optionally validates the OCI
+Management Agent datasource, and then destroys temporary infrastructure.
+
+Editable source:
+[`docs/diagrams/deployment-validation-workflow.excalidraw`](docs/diagrams/deployment-validation-workflow.excalidraw).
 
 **Grafana — metrics delivered via the OTEL path** (IPs masked):
 
