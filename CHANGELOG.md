@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- `lib/target-discovery.sh` — shared target discovery module for normalized target
+  records and output rendering, plus a Bash test harness.
 - **`discover-cloud-instances.sh`** — multicloud companion to the OCI discoverer;
   enumerates running instances in AWS, Azure, GCP, or OCI (or `all`) and emits
   cloud-labelled Prometheus targets (table / file_sd / config.json merge).
@@ -44,6 +46,9 @@ All notable changes to this project are documented here. The format is based on
   (shellcheck + PSScriptAnalyzer + `docker compose config`).
 
 ### Changed
+- `discover-oci-instances.sh` and `discover-cloud-instances.sh` now keep their
+  public command interfaces while delegating target rendering and config merging
+  to the shared target discovery module.
 - **OCI Monitoring is now optional.** New `OciMonitoringEnabled` config flag. The
   proxy can run as a pure OpenTelemetry / `remote_write` exporter to a non-OCI
   backend; the Management Agent zip/response-file prompts and install only happen

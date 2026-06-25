@@ -157,6 +157,35 @@ DefenseDemo live infrastructure remains blocked before resource creation: the
 install-key create prerequisite still returns `NotAuthorizedOrNotFound`. No cloud
 VM, install key, data source, or agent resource was created in this validation.
 
+## Target discovery refactor validation - 2026-06-25
+
+Deepened target discovery behind `lib/target-discovery.sh` while preserving both
+public command interfaces:
+
+- `discover-oci-instances.sh` remains the OCI-focused quick-start command.
+- `discover-cloud-instances.sh` remains the multicloud command.
+- Shared rendering now owns normalized target records, table output,
+  `discovered-targets.json`, and `config.json` `TargetNodes` merge behavior.
+- OCI-only `targets` output preserves existing labels (`os`, `instance`); the
+  multicloud command still includes `cloud`.
+
+Validation:
+
+- `bash -n`, `shellcheck`, PowerShell parser check, and Docker Compose config all
+  passed.
+- `tests/target-discovery.test.sh` passed, including Linux/Windows port selection,
+  OCI-label compatibility, cloud-labelled target output, and config dedupe.
+- Public discovery smoke checks passed for help output and no-target config merge.
+- Full disposable deployment e2e passed again:
+  `node_exporter -> Prometheus /federate -> OTEL Collector -> destination Prometheus`.
+  Destination `node_load1` carried `cloud="script-e2e"` and
+  `otel_scope_name=".../prometheusreceiver"`, with 655 destination series.
+- Destination/source logs were scanned after the final run; no warnings or errors
+  were emitted by the runnable validation stack.
+
+All e2e containers, volumes, networks, and scratch files were destroyed after the
+run. No cloud resources were created.
+
 ## Reference
 - OCI CLI / Ansible install reference added to the `oci-observability-dbm-opsi` skill: `references/management-agent-prometheus.md`.
 - Linux Management Agent bootstrap reference: oracle-devrel `observability-and-management/management-agent`.

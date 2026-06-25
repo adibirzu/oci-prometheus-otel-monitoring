@@ -37,6 +37,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/target-discovery.sh
+source "$SCRIPT_DIR/lib/target-discovery.sh"
+
 PROFILE="${OCI_CLI_PROFILE:-DEFAULT}"
 COMPARTMENT_ID="" REGION="" PORT="9100" OUTPUT="table" CONFIG_FILE="./config.json"
 TENANCY_SCAN="false"
@@ -114,7 +118,7 @@ primary_private_ip() {
 }
 
 RECORDS="$TMP_DISC/records.tsv"   # name \t os \t ip \t port
-: > "$RECORDS"
+target_records_init "$RECORDS"
 
 echo "Scanning for RUNNING instances (profile=$PROFILE${REGION:+, region=$REGION})..." >&2
 while read -r CID; do
@@ -125,8 +129,7 @@ while read -r CID; do
     IP="$(primary_private_ip "$IID")"
     [[ -z "$IP" || "$IP" == "null" ]] && continue
     FAM="$(os_family_for_image "$IMG")"
-    if [[ "$FAM" == "windows" ]]; then P="$WIN_PORT"; else P="$PORT"; fi
-    printf '%s\t%s\t%s\t%s\n' "$NAME" "$FAM" "$IP" "$P" >> "$RECORDS"
+    target_record_add "$RECORDS" "" "$NAME" "$FAM" "$IP" "$PORT" "$WIN_PORT"
   done < <(echo "$INSTANCES" | python3 -c "
 import sys, json
 for i in (json.load(sys.stdin).get('data') or []):
@@ -135,48 +138,28 @@ for i in (json.load(sys.stdin).get('data') or []):
 " 2>/dev/null)
 done < <(compartments_to_scan)
 
-COUNT="$(wc -l < "$RECORDS" | tr -d ' ')"
+COUNT="$(target_records_count "$RECORDS")"
 if [[ "$COUNT" == "0" ]]; then
   echo "No RUNNING instances with a private IP found in scope." >&2
 fi
 
 case "$OUTPUT" in
   table)
-    printf '%-30s %-8s %-22s\n' "NAME" "OS" "TARGET"
-    printf '%-30s %-8s %-22s\n' "----" "--" "------"
-    while IFS=$'\t' read -r NAME FAM IP P; do
-      printf '%-30s %-8s %-22s\n' "$NAME" "$FAM" "$IP:$P"
-    done < "$RECORDS"
+    target_render_table "$RECORDS" false
     echo "($COUNT target(s))" >&2
     ;;
 
   targets)
     OUT="discovered-targets.json"
-    python3 -c "
-import sys, json
-recs=[l.rstrip('\n').split('\t') for l in open('$RECORDS') if l.strip()]
-groups=[{'targets':[f'{ip}:{p}'],'labels':{'os':fam,'instance':name}} for name,fam,ip,p in recs]
-open('$OUT','w').write(json.dumps(groups, indent=2)+'\n')
-print(f'Wrote {len(groups)} target group(s) to $OUT (Prometheus file_sd_config).', file=sys.stderr)
-"
+    target_render_targets "$RECORDS" "$OUT" false
+    echo "Wrote $COUNT target group(s) to $OUT (Prometheus file_sd_config)." >&2
     ;;
 
   config)
-    python3 -c "
-import sys, json, os
-recs=[l.rstrip('\n').split('\t') for l in open('$RECORDS') if l.strip()]
-path='$CONFIG_FILE'
-cfg={}
-if os.path.exists(path):
-    try: cfg=json.load(open(path))
-    except Exception: cfg={}
-existing=cfg.get('TargetNodes') or []
-new=[f'{ip}:{p}' for name,fam,ip,p in recs]
-merged=list(dict.fromkeys([*existing, *new]))   # union, order-preserving
-cfg['TargetNodes']=merged
-json.dump(cfg, open(path,'w'), indent=4); open(path,'a').write('\n')
-print(f'Merged {len(new)} discovered target(s) into {path} TargetNodes ({len(merged)} total).', file=sys.stderr)
-"
+    MERGE_RESULT="$(target_merge_config "$RECORDS" "$CONFIG_FILE")"
+    NEW_COUNT="${MERGE_RESULT%%$'\t'*}"
+    TOTAL_COUNT="${MERGE_RESULT##*$'\t'}"
+    echo "Merged $NEW_COUNT discovered target(s) into $CONFIG_FILE TargetNodes ($TOTAL_COUNT total)." >&2
     ;;
 
   *) echo "Unknown --output '$OUTPUT' (use table|targets|config)." >&2; exit 1;;

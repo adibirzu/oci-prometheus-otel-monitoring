@@ -37,6 +37,10 @@
 # is given. We guard our own variables explicitly instead.
 set -eo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/target-discovery.sh
+source "$SCRIPT_DIR/lib/target-discovery.sh"
+
 CLOUD="" REGION="" RG="" PROJECT="" ZONE="" COMPARTMENT_ID="" PROFILE="${OCI_CLI_PROFILE:-DEFAULT}"
 PORT="9100" WIN_PORT="9182" OUTPUT="table" CONFIG_FILE="./config.json" USE_PUBLIC="false"
 
@@ -60,8 +64,8 @@ done
 [[ -z "$CLOUD" ]] && { echo "Provide --cloud aws|azure|gcp|oci|all" >&2; exit 1; }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-RECORDS="$TMP/records.tsv"; : > "$RECORDS"   # cloud \t name \t os \t ip \t port
-port_for() { [[ "$1" == "windows" ]] && echo "$WIN_PORT" || echo "$PORT"; }
+RECORDS="$TMP/records.tsv"   # cloud \t name \t os \t ip \t port
+target_records_init "$RECORDS"
 
 discover_aws() {
   command -v aws >/dev/null || { echo "aws CLI not found" >&2; return; }
@@ -121,8 +125,8 @@ discover_oci() {
   local args=(--compartment-id "$COMPARTMENT_ID" --profile "$PROFILE" --output targets --port "$PORT")
   [[ -n "$REGION" ]] && args+=(--region "$REGION")
   # Reuse the OCI discoverer, then re-tag its file_sd output as cloud=oci.
-  ( cd "$(dirname "$0")" && ./discover-oci-instances.sh "${args[@]}" >/dev/null 2>&1 ) || true
-  local f; f="$(dirname "$0")/discovered-targets.json"
+  ( cd "$SCRIPT_DIR" && ./discover-oci-instances.sh "${args[@]}" >/dev/null 2>&1 ) || true
+  local f; f="$SCRIPT_DIR/discovered-targets.json"
   [[ -f "$f" ]] && python3 -c "
 import json
 for g in json.load(open('$f')):
@@ -147,38 +151,21 @@ else
 fi > "$TMP/raw.tsv" 2>/dev/null || true
 # attach the correct port per OS
 while IFS=$'\t' read -r CL NAME OSF IP; do
-  [[ -z "$IP" ]] && continue
-  printf '%s\t%s\t%s\t%s\t%s\n' "$CL" "$NAME" "$OSF" "$IP" "$(port_for "$OSF")" >> "$RECORDS"
+  target_record_add "$RECORDS" "$CL" "$NAME" "$OSF" "$IP" "$PORT" "$WIN_PORT"
 done < "$TMP/raw.tsv"
 
-COUNT="$(wc -l < "$RECORDS" | tr -d ' ')"
+COUNT="$(target_records_count "$RECORDS")"
 case "$OUTPUT" in
   table)
-    printf '%-7s %-28s %-8s %-22s\n' "CLOUD" "NAME" "OS" "TARGET"
-    printf '%-7s %-28s %-8s %-22s\n' "-----" "----" "--" "------"
-    while IFS=$'\t' read -r CL NAME OSF IP P; do printf '%-7s %-28s %-8s %-22s\n' "$CL" "$NAME" "$OSF" "$IP:$P"; done < "$RECORDS"
+    target_render_table "$RECORDS" true
     echo "($COUNT target(s))" >&2;;
   targets)
-    python3 -c "
-import json
-recs=[l.rstrip('\n').split('\t') for l in open('$RECORDS') if l.strip()]
-groups=[{'targets':[f'{ip}:{p}'],'labels':{'cloud':cl,'os':osf,'instance':name}} for cl,name,osf,ip,p in recs]
-open('discovered-targets.json','w').write(json.dumps(groups, indent=2)+'\n')
-import sys; print(f'Wrote {len(groups)} target group(s) to discovered-targets.json (cloud-labelled).', file=sys.stderr)
-";;
+    target_render_targets "$RECORDS" "discovered-targets.json" true
+    echo "Wrote $COUNT target group(s) to discovered-targets.json (cloud-labelled)." >&2;;
   config)
-    python3 -c "
-import json, os, sys
-recs=[l.rstrip('\n').split('\t') for l in open('$RECORDS') if l.strip()]
-path='$CONFIG_FILE'; cfg={}
-if os.path.exists(path):
-    try: cfg=json.load(open(path))
-    except Exception: cfg={}
-existing=cfg.get('TargetNodes') or []
-new=[f'{ip}:{p}' for cl,name,osf,ip,p in recs]
-cfg['TargetNodes']=list(dict.fromkeys([*existing, *new]))
-json.dump(cfg, open(path,'w'), indent=4); open(path,'a').write('\n')
-print(f'Merged {len(new)} target(s) into {path} ({len(cfg[\"TargetNodes\"])} total).', file=sys.stderr)
-";;
+    MERGE_RESULT="$(target_merge_config "$RECORDS" "$CONFIG_FILE")"
+    NEW_COUNT="${MERGE_RESULT%%$'\t'*}"
+    TOTAL_COUNT="${MERGE_RESULT##*$'\t'}"
+    echo "Merged $NEW_COUNT target(s) into $CONFIG_FILE ($TOTAL_COUNT total)." >&2;;
   *) echo "Unknown --output '$OUTPUT'" >&2; exit 1;;
 esac

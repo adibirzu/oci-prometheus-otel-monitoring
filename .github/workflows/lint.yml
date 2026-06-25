@@ -14,7 +14,9 @@ jobs:
       - name: Run shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck -S warning *.sh otel-destination/*.sh
+          shellcheck -S warning *.sh lib/*.sh tests/*.sh otel-destination/*.sh
+      - name: Run shell tests
+        run: bash tests/target-discovery.test.sh
 
   psscriptanalyzer:
     name: PSScriptAnalyzer (PowerShell)
