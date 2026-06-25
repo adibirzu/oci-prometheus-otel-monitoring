@@ -26,6 +26,9 @@ All notable changes to this project are documented here. The format is based on
   `prometheus_codex_e2e` / `node_load1[1m].mean()`.
 - Fresh disposable e2e validation notes for the OTEL data path and current
   DefenseDemo IAM blockers.
+- Fresh 2026-06-25 full disposable deployment validation notes: source
+  `node_exporter` through `/federate` and OTEL Collector into the checked-in
+  destination Prometheus/Grafana stack.
 - KB-24 (Linux agent needs JDK 8 + `JAVA_HOME`), KB-25 (empty `list-data-sources`),
   KB-26 (cross-cloud agent → OCI Monitoring checklist), KB-27 (first-boot apt lock),
   KB-28 (no-SSH → drive via `az vm run-command` / `aws ssm send-command`).
@@ -57,6 +60,9 @@ All notable changes to this project are documented here. The format is based on
   exporter key instead of the deprecated alias.
 - Ignored `.e2e-tmp/` local scratch directories created during disposable
   validation runs.
+- Quieted the reference Grafana stack by pinning Grafana OSS `11.5.0`, disabling
+  update checks, setting error-level logging, and adding valid empty provisioning
+  files for alerting/plugins.
 
 ### Fixed
 - `manage-oci-datasource.sh` no longer crashes with a JSON parse error when an agent

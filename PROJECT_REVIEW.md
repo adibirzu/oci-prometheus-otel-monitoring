@@ -133,6 +133,30 @@ Started from a clean `main` checkout and attempted a from-zero live run:
 All local containers, the temporary systemd image, and scratch files were removed
 after validation. No cloud resources were left behind.
 
+## Full disposable deployment validation - 2026-06-25
+
+Ran a clean local deployment from zero using the checked-in destination stack plus
+a disposable source stack:
+
+- Static gates passed: shell syntax, `shellcheck`, PowerShell parser validation,
+  and `docker compose config`.
+- Destination stack: `otel-destination/docker-compose.yml` with OTEL Collector
+  `0.154.0`, Prometheus `3.12.0`, and Grafana OSS `11.5.0`.
+- Source stack: `node_exporter 1.11.1 -> Prometheus 3.12.0 /federate -> OTEL
+  Collector 0.154.0 -> destination Prometheus remote_write`.
+- Verified `node_load1` at source Prometheus and destination Prometheus.
+- Destination series carried `cloud="script-e2e"` and
+  `otel_scope_name=".../prometheusreceiver"`, proving the metric traversed the
+  OTEL Collector.
+- Destination Prometheus returned 655 `cloud="script-e2e"` series.
+- Destination and source logs were scanned after the final clean run; no warnings
+  or errors were emitted by the runnable validation stack.
+
+DefenseDemo live infrastructure remains blocked before resource creation: the
+`emdemo` profile can list accessible compartments, but the Management Agent
+install-key create prerequisite still returns `NotAuthorizedOrNotFound`. No cloud
+VM, install key, data source, or agent resource was created in this validation.
+
 ## Reference
 - OCI CLI / Ansible install reference added to the `oci-observability-dbm-opsi` skill: `references/management-agent-prometheus.md`.
 - Linux Management Agent bootstrap reference: oracle-devrel `observability-and-management/management-agent`.

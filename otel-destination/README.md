@@ -19,7 +19,8 @@ docker compose up -d
 ```
 
 Ports: Grafana **3000** (anonymous admin, light theme), Prometheus **9090**
-(remote-write receiver enabled), OTEL Collector OTLP **4317/4318**.
+(remote-write receiver enabled), OTEL Collector OTLP **4317/4318**. Grafana is
+pinned to OSS **11.5.0** for stable startup behavior in the disposable e2e stack.
 
 ## Point the proxy at it
 
@@ -35,6 +36,8 @@ In the proxy `config.json` (or the script prompts):
 
 - Prometheus: `http://<DEST_HOST>:9090/api/v1/label/__name__/values` should list
   `node_*` and `windows_*` series.
+- Prometheus query: `node_load1` should include the proxy's `cloud` label and
+  `otel_scope_name=".../prometheusreceiver"`.
 - Grafana: dashboard **"OCI Prometheus → OTEL → Grafana (e2e test)"**.
 
 > Security note: this stack is wide open (anonymous Grafana, no TLS/auth) for test
